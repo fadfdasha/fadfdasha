@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تسجيل الدخول — {{SITE_NAME}}</title>
+<meta name="description" content="سجّل الدخول إلى {{SITE_NAME}} وابدأ الدردشة العشوائية الخاصة.">
+<link rel="canonical" href="{{SITE_URL}}/login">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header class="nav">
+  <div class="nav-inner">
+    <a class="logo" href="/">💬 {{SITE_NAME}}</a>
+    <nav class="nav-links">
+      <a href="/register" class="btn primary small">حساب جديد</a>
+    </nav>
+  </div>
+</header>
+
+<main class="auth-wrap">
+  <div class="auth-card">
+    <h1>تسجيل الدخول</h1>
+    <p class="muted">أهلًا بعودتك — فضفضتك بانتظارك.</p>
+    <form id="loginForm" data-form="login" novalidate>
+      <label>
+        اسم المستخدم
+        <input type="text" name="username" required placeholder="اسم المستخدم" autocomplete="username" dir="auto">
+      </label>
+      <label>
+        كلمة المرور
+        <input type="password" name="password" required placeholder="كلمة المرور" autocomplete="current-password">
+      </label>
+      <div id="formError" class="form-error" role="alert"></div>
+      <button type="submit" class="btn primary big full">دخول</button>
+    </form>
+    <p class="muted center">ما عندك حساب؟ <a href="/register">أنشئ واحدًا مجانًا</a></p>
+  </div>
+</main>
+
+<script src="/js/auth.js"></script>
+</body>
+</html>

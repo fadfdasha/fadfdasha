@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>حساب جديد — {{SITE_NAME}}</title>
+<meta name="description" content="أنشئ حسابًا في {{SITE_NAME}} باسم مستخدم وكلمة مرور فقط، وابدأ الدردشة العشوائية الخاصة.">
+<link rel="canonical" href="{{SITE_URL}}/register">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header class="nav">
+  <div class="nav-inner">
+    <a class="logo" href="/">💬 {{SITE_NAME}}</a>
+    <nav class="nav-links">
+      <a href="/login" class="btn ghost small">دخول</a>
+    </nav>
+  </div>
+</header>
+
+<main class="auth-wrap">
+  <div class="auth-card">
+    <h1>حساب جديد</h1>
+    <p class="muted">اسم مستخدم + كلمة مرور فقط — بدون بريد إلكتروني.</p>
+    <form id="registerForm" data-form="register" novalidate>
+      <label>
+        اسم المستخدم
+        <input type="text" name="username" required minlength="3" maxlength="20"
+               placeholder="مثال: مستخدم_فضفضة" autocomplete="username" dir="auto">
+      </label>
+      <label>
+        كلمة المرور
+        <input type="password" name="password" required minlength="6"
+               placeholder="6 أحرف على الأقل" autocomplete="new-password">
+      </label>
+      <div id="formError" class="form-error" role="alert"></div>
+      <button type="submit" class="btn primary big full">إنشاء الحساب 🎲</button>
+    </form>
+    <p class="muted center">عندك حساب؟ <a href="/login">سجّل الدخول</a></p>
+  </div>
+</main>
+
+<script src="/js/auth.js"></script>
+</body>
+</html>
