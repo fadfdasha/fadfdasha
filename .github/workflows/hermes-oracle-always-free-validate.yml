@@ -1,0 +1,79 @@
+name: Validate Hermes Oracle Always Free (no cloud provisioning)
+
+on:
+  push:
+    paths:
+      - "hermes/oracle/**"
+      - ".github/workflows/hermes-oracle-always-free-validate.yml"
+  pull_request:
+    paths:
+      - "hermes/oracle/**"
+      - ".github/workflows/hermes-oracle-always-free-validate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-guardrails:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate bash script syntax
+        run: bash -n hermes/oracle/*.sh
+      - name: Check Oracle Always Free limits and Docker config
+        env:
+          HERMES_DATA_DIR: /tmp/hermes-oracle-ci-only
+          HERMES_UID: "1000"
+          HERMES_GID: "1000"
+        run: |
+          docker compose -f hermes/oracle/compose.yaml config --format json > "$RUNNER_TEMP/hermes-oracle-compose.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("hermes/oracle")
+          guard = json.loads((root / "always-free-config.json").read_text())
+          vm = guard["compute"]
+          free = guard["published_always_free_capacity"]
+          assert guard["create_paid_resources"] is False
+          assert guard["account_upgrade_required"] is False
+          assert guard["resource_creation"] == "manual_only"
+          assert vm["shape"] == "VM.Standard.A1.Flex"
+          assert vm["home_region_only"] is True
+          assert vm["ocpus"] >= 1 and vm["ocpus"] <= free["ampere_ocpus_total"]
+          assert 1 <= vm["ram_gb"] <= free["ampere_memory_gb_total"]
+          assert 50 <= vm["boot_volume_gb"] <= free["combined_boot_and_block_volume_gb_total"]
+
+          config = json.loads((Path(os.environ["RUNNER_TEMP"]) / "hermes-oracle-compose.json").read_text())
+          assert set(config["services"]) == {"hermes"}
+          svc = config["services"]["hermes"]
+          assert svc["platform"] == "linux/arm64"
+          assert svc["restart"] == "unless-stopped"
+          assert svc["command"] == ["gateway", "run"]
+          assert not svc.get("ports")
+          assert svc["environment"]["API_SERVER_ENABLED"] == "false"
+          assert svc["environment"]["TELEGRAM_ALLOW_ALL_USERS"] == "false"
+          mounts = svc["volumes"]
+          assert len(mounts) == 1
+          assert mounts[0]["target"] == "/opt/data"
+          assert "/var/run/docker.sock" not in str(mounts)
+          assert "/.ssh" not in str(mounts)
+          print("PASS: Free Tier capacity, no paid-resource mutations, Docker security and ARM64.")
+          PY
+      - name: Verify official Hermes stable image supports linux/arm64
+        run: |
+          docker buildx imagetools inspect --raw nousresearch/hermes-agent:stable > "$RUNNER_TEMP/hermes-manifest.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          d=json.loads((Path(os.environ["RUNNER_TEMP"])/"hermes-manifest.json").read_text())
+          platforms=[m.get("platform",{}) for m in d.get("manifests",[])]
+          assert any(p.get("os")=="linux" and p.get("architecture")=="arm64" for p in platforms), "No linux/arm64 image in official stable manifest"
+          print("PASS: official Hermes stable image advertises linux/arm64.")
+          PY

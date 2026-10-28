@@ -1,0 +1,29 @@
+{
+  "purpose": "Hermes Agent on Oracle Cloud Infrastructure Always Free (manual provisioning only)",
+  "cloud_provider": "Oracle Cloud Infrastructure",
+  "resource_creation": "manual_only",
+  "create_paid_resources": false,
+  "account_upgrade_required": false,
+  "compute": {
+    "shape": "VM.Standard.A1.Flex",
+    "architecture": "aarch64",
+    "ocpus": 1,
+    "ram_gb": 6,
+    "os": "Ubuntu ARM64",
+    "boot_volume_gb": 50,
+    "home_region_only": true
+  },
+  "published_always_free_capacity": {
+    "ampere_ocpus_total": 2,
+    "ampere_memory_gb_total": 12,
+    "combined_boot_and_block_volume_gb_total": 200
+  },
+  "security": {
+    "inbound_tcp_ports": [22],
+    "ssh_source": "user_public_ip_cidr_32_only",
+    "public_gateway_port": false,
+    "allow_all_telegram_users": false,
+    "github_actions_never_accesses_model_or_bot_secrets": true
+  },
+  "provider_reference": "https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm"
+}
