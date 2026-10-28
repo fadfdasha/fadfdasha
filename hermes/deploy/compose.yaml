@@ -1,0 +1,23 @@
+# Persistent Hermes Agent gateway. No public inbound ports are exposed.
+# Credentials and model settings live ONLY on the VPS in HERMES_DATA_DIR.
+# Use hermes/deploy/first-setup.sh before deploying for the first time.
+services:
+  hermes:
+    image: ${HERMES_IMAGE:-nousresearch/hermes-agent:stable}
+    container_name: hermes-agent-gateway
+    restart: unless-stopped
+    command: ["gateway", "run"]
+    environment:
+      HERMES_UID: "${HERMES_UID:?Set HERMES_UID}"
+      HERMES_GID: "${HERMES_GID:?Set HERMES_GID}"
+    volumes:
+      - "${HERMES_DATA_DIR:?Set HERMES_DATA_DIR}:/opt/data"
+    # No ports: Telegram uses outgoing connections, and the gateway API is not exposed.
+    # Do not mount the Docker socket or the host's SSH keys.
+    pids_limit: 512
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

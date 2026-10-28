@@ -1,0 +1,121 @@
+name: Hermes VPS — validate and deploy
+
+on:
+  push:
+    paths:
+      - "hermes/deploy/**"
+      - ".github/workflows/hermes-vps-deploy.yml"
+  pull_request:
+    paths:
+      - "hermes/deploy/**"
+      - ".github/workflows/hermes-vps-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Choose validation or explicit VPS deployment"
+        required: true
+        default: validate
+        type: choice
+        options:
+          - validate
+          - deploy
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hermes-vps-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check deployment script syntax
+        run: bash -n hermes/deploy/deploy.sh hermes/deploy/first-setup.sh
+      - name: Check Docker Compose configuration
+        env:
+          HERMES_DATA_DIR: /tmp/hermes-agent-validation-data
+          HERMES_UID: "1000"
+          HERMES_GID: "1000"
+        run: |
+          docker compose -f hermes/deploy/compose.yaml config --format json > "$RUNNER_TEMP/hermes-compose.json"
+          # Inspect resolved Compose structure, not comments containing phrases like "No ports:".
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          data = json.loads((Path(os.environ["RUNNER_TEMP"]) / "hermes-compose.json").read_text())
+          services = data.get("services", {})
+          assert set(services) == {"hermes"}, "Unexpected Compose services"
+          service = services["hermes"]
+          assert not service.get("ports"), "Inbound ports unexpectedly published"
+          assert service.get("restart") == "unless-stopped", "Gateway must restart after reboot"
+          mounts = service.get("volumes", [])
+          for mount in mounts:
+              source = str(mount.get("source", "")) if isinstance(mount, dict) else str(mount)
+              assert "/var/run/docker.sock" not in source, "Docker socket must not be mounted"
+              assert "/.ssh" not in source, "SSH credentials must not be mounted"
+          print("Resolved Compose configuration and security checks passed.")
+          PY
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: hermes-vps
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare pinned SSH connection
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.HERMES_SSH_HOST }}
+          SSH_USER: ${{ secrets.HERMES_SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.HERMES_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.HERMES_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          : "${SSH_HOST:?Missing environment secret HERMES_SSH_HOST}"
+          : "${SSH_USER:?Missing environment secret HERMES_SSH_USER}"
+          : "${SSH_PRIVATE_KEY:?Missing environment secret HERMES_SSH_PRIVATE_KEY}"
+          : "${SSH_KNOWN_HOSTS:?Missing environment secret HERMES_SSH_KNOWN_HOSTS}"
+          [[ "$SSH_HOST" =~ ^[a-zA-Z0-9.-]+$ ]] || { echo "Invalid SSH host"; exit 1; }
+          [[ "$SSH_USER" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo "Invalid SSH user"; exit 1; }
+          umask 077
+          mkdir -p "$RUNNER_TEMP/hermes-ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/hermes-ssh/id"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$RUNNER_TEMP/hermes-ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/hermes-ssh/id" "$RUNNER_TEMP/hermes-ssh/known_hosts"
+          ssh-keygen -y -f "$RUNNER_TEMP/hermes-ssh/id" > /dev/null
+          ssh-keygen -l -f "$RUNNER_TEMP/hermes-ssh/known_hosts" > /dev/null
+      - name: Copy approved deployment files and run on VPS
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.HERMES_SSH_HOST }}
+          SSH_USER: ${{ secrets.HERMES_SSH_USER }}
+        run: |
+          set -euo pipefail
+          SSH_OPTIONS=(
+            -i "$RUNNER_TEMP/hermes-ssh/id"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$RUNNER_TEMP/hermes-ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          target="${SSH_USER}@${SSH_HOST}"
+          ssh "${SSH_OPTIONS[@]}" "$target" 'mkdir -p "$HOME/hermes-agent-deployment" && chmod 700 "$HOME/hermes-agent-deployment"'
+          scp "${SSH_OPTIONS[@]}" \
+            hermes/deploy/compose.yaml hermes/deploy/deploy.sh hermes/deploy/first-setup.sh \
+            "$target:hermes-agent-deployment/"
+          ssh "${SSH_OPTIONS[@]}" "$target" 'bash "$HOME/hermes-agent-deployment/deploy.sh"'
+      - name: Clean up SSH key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/hermes-ssh"
