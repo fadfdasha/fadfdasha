@@ -1,0 +1,56 @@
+name: Validate Hermes Render Blueprint
+
+on:
+  push:
+    paths:
+      - render.yaml
+      - hermes/render/**
+      - .github/workflows/hermes-render-validate.yml
+  pull_request:
+    paths:
+      - render.yaml
+      - hermes/render/**
+      - .github/workflows/hermes-render-validate.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate paid worker, disk persistence, and secret boundaries
+        run: |
+          ruby -ryaml -e '
+            b=YAML.load_file("render.yaml")
+            abort "Expected one worker" unless b.fetch("services").size == 1
+            s=b.fetch("services").first
+            abort "Service is not worker" unless s["type"]=="worker"
+            abort "Service is not Docker" unless s["runtime"]=="docker"
+            abort "Wrong image Dockerfile" unless s["dockerfilePath"]=="./hermes/render/Dockerfile"
+            abort "Worker must be explicitly paid" unless s["plan"]=="1c-2g"
+            abort "Public app not permitted" unless !s.key?("domains") && !s.key?("healthCheckPath")
+            disk=s.fetch("disk")
+            abort "Persistent state must mount at /opt/data" unless disk["mountPath"]=="/opt/data" && disk["sizeGB"]>=5
+            abort "Single instance only" unless s["numInstances"]==1
+            abort "Automatic deployment forbidden" unless s["autoDeployTrigger"]=="off"
+            env=s.fetch("envVars").to_h{|e| [e["key"],e]}
+            ["DEEPSEEK_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_ALLOWED_USERS"].each do |key|
+              abort "#{key} must be supplied privately" unless env.fetch(key)["sync"]==false && !env[key].key?("value")
+            end
+            ["TELEGRAM_ALLOW_ALL_USERS", "GATEWAY_ALLOW_ALL_USERS", "API_SERVER_ENABLED"].each do |key|
+              abort "#{key} must remain disabled" unless env.fetch(key)["value"]=="false"
+            end
+            puts "Blueprint structural/security checks passed (not a Render live deployment validation)."
+          '
+      - name: Validate base image and supervisor
+        run: |
+          grep -qx 'FROM nousresearch/hermes-agent:stable' hermes/render/Dockerfile
+          grep -Fqx 'CMD ["gateway", "run"]' hermes/render/Dockerfile
+          test ! -f hermes/render/.env
+          echo "Dockerfile baseline verified; image was not pulled or executed in this test."
