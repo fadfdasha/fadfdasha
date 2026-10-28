@@ -1,0 +1,29 @@
+name: Validate Hermes skills
+
+on:
+  push:
+    paths:
+      - "skills/**"
+      - "tools/validate_hermes_skills.py"
+      - ".github/workflows/hermes-skills-validate.yml"
+  pull_request:
+    paths:
+      - "skills/**"
+      - "tools/validate_hermes_skills.py"
+      - ".github/workflows/hermes-skills-validate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  skills-structure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate local skill definitions
+        run: python3 tools/validate_hermes_skills.py
