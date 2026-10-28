@@ -1,0 +1,27 @@
+# Oracle Cloud Always Free: 1 OCPU / 6 GB ARM64 Ubuntu, persistent host data.
+# No public ports; Telegram uses outbound connections. This file creates no cloud resources.
+services:
+  hermes:
+    image: ${HERMES_IMAGE:-nousresearch/hermes-agent:stable}
+    platform: linux/arm64
+    container_name: hermes-oracle-gateway
+    restart: unless-stopped
+    command: ["gateway", "run"]
+    environment:
+      HERMES_UID: "${HERMES_UID:?Set HERMES_UID}"
+      HERMES_GID: "${HERMES_GID:?Set HERMES_GID}"
+      TELEGRAM_ALLOW_ALL_USERS: "false"
+      GATEWAY_ALLOW_ALL_USERS: "false"
+      API_SERVER_ENABLED: "false"
+    volumes:
+      - type: bind
+        source: "${HERMES_DATA_DIR:?Set absolute HERMES_DATA_DIR}"
+        target: /opt/data
+    # Never bind /var/run/docker.sock or ~/.ssh into an autonomous agent.
+    pids_limit: 512
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
