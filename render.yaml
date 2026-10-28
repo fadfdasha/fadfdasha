@@ -1,0 +1,32 @@
+# Hermes Agent on Render: PAID background worker + single persistent disk.
+# This blueprint is inert until a Render account authorizes and creates the service.
+# No public HTTP port; Telegram long-polling uses outbound network access.
+# Model, Telegram, and allowed-user secrets must be supplied in Render Dashboard.
+services:
+  - type: worker
+    name: hermes-agent-fadfdasha
+    runtime: docker
+    region: frankfurt
+    plan: 1c-2g
+    branch: main
+    autoDeployTrigger: "off"
+    dockerfilePath: ./hermes/render/Dockerfile
+    dockerContext: ./hermes/render
+    numInstances: 1
+    disk:
+      name: hermes-persistent-data
+      mountPath: /opt/data
+      sizeGB: 5
+    envVars:
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_ALLOWED_USERS
+        sync: false
+      - key: TELEGRAM_ALLOW_ALL_USERS
+        value: "false"
+      - key: GATEWAY_ALLOW_ALL_USERS
+        value: "false"
+      - key: API_SERVER_ENABLED
+        value: "false"
