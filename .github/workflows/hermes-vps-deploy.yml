@@ -43,14 +43,24 @@ jobs:
           HERMES_UID: "1000"
           HERMES_GID: "1000"
         run: |
-          docker compose -f hermes/deploy/compose.yaml config --quiet
-          # No inbound ports, Docker daemon mount, or host SSH-key mount.
+          docker compose -f hermes/deploy/compose.yaml config --format json > "$RUNNER_TEMP/hermes-compose.json"
+          # Inspect resolved Compose structure, not comments containing phrases like "No ports:".
           python3 - <<'PY'
+          import json
+          import os
           from pathlib import Path
-          p = Path("hermes/deploy/compose.yaml").read_text()
-          for forbidden in ("ports:", "/var/run/docker.sock", "/.ssh:"):
-              assert forbidden not in p, "Unsafe Compose setting: " + forbidden
-          print("Compose security invariants present")
+          data = json.loads((Path(os.environ["RUNNER_TEMP"]) / "hermes-compose.json").read_text())
+          services = data.get("services", {})
+          assert set(services) == {"hermes"}, "Unexpected Compose services"
+          service = services["hermes"]
+          assert not service.get("ports"), "Inbound ports unexpectedly published"
+          assert service.get("restart") == "unless-stopped", "Gateway must restart after reboot"
+          mounts = service.get("volumes", [])
+          for mount in mounts:
+              source = str(mount.get("source", "")) if isinstance(mount, dict) else str(mount)
+              assert "/var/run/docker.sock" not in source, "Docker socket must not be mounted"
+              assert "/.ssh" not in source, "SSH credentials must not be mounted"
+          print("Resolved Compose configuration and security checks passed.")
           PY
 
   deploy:
