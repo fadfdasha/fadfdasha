@@ -9,7 +9,7 @@ services:
     region: frankfurt
     plan: 1c-2g
     branch: main
-    autoDeployTrigger: off
+    autoDeployTrigger: "off"
     dockerfilePath: ./hermes/render/Dockerfile
     dockerContext: ./hermes/render
     numInstances: 1
