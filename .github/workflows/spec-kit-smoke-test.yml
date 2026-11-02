@@ -17,9 +17,9 @@ concurrency:
 
 jobs:
   install-and-verify:
-    name: Spec Kit install smoke test (Ubuntu)
+    name: Spec Kit install and agent scaffolding (Ubuntu)
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Validate installer syntax
@@ -31,3 +31,20 @@ jobs:
           export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
           command -v specify
           specify version
+      - name: Verify Codex integration in throwaway project
+        run: |
+          export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+          scratch="$(mktemp -d)"
+          cd "$scratch"
+          specify init smoke-codex --integration codex --ignore-agent-tools --non-interactive
+          test -d smoke-codex/.specify
+          test -f smoke-codex/.agents/skills/speckit-specify/SKILL.md
+          echo "Codex Spec Kit skills generated successfully."
+      - name: Verify Copilot integration in throwaway project
+        run: |
+          export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+          scratch="$(mktemp -d)"
+          cd "$scratch"
+          specify init smoke-copilot --integration copilot --ignore-agent-tools --non-interactive
+          test -d smoke-copilot/.specify
+          echo "Copilot Spec Kit project initialized successfully."
