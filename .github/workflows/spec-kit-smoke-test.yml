@@ -1,0 +1,33 @@
+name: Verify Spec Kit installation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - install.sh
+      - .github/workflows/spec-kit-smoke-test.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spec-kit-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install-and-verify:
+    name: Spec Kit install smoke test (Ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate installer syntax
+        run: bash -n install.sh
+      - name: Install pinned Spec Kit
+        run: bash install.sh
+      - name: Verify Specify CLI
+        run: |
+          export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+          command -v specify
+          specify version
